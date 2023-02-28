@@ -1,14 +1,12 @@
 from functools import partial
 import pyqtgraph.opengl as gl
-from pyqtgraph import Vector
-from pyqtgraph.Qt import QtWidgets
 from typing import List
 import numpy as np
-import sys
 import os
 import pandas as pd
+import sys
 try:
-    from pyqtgraph import PlotDataItem, PlotWidget, mkPen
+    from pyqtgraph import PlotDataItem, PlotWidget, mkPen, Vector
     from PyQt5 import QtWidgets, QtCore
     from PyQt5.QtGui import QColor
     from PyQt5.QtCore import QUrl, pyqtSlot, pyqtSignal
@@ -36,6 +34,12 @@ COLORS = ["orange", "green", "blue", "red", "aqua", "orange", "hotpink", "lights
           "blueviolet", "orangered", "royalblue", "green", "plum", "paleturquoise", "palegreen", "navy", "turquoise",
           "mediumvioletred", "darkgoldenrod", "fuchsia", "steelblue", "lightcoral", "thistle", "khaki", "chartreuse",
           "teal", "saddlebrown", "violet", "lemonchiffon", "olive"]
+
+def find_file_name(file_path):
+    last_sep = file_path.rfind("/")
+    last_dot = file_path.rfind(".")
+    return f"{file_path[last_sep + 1:last_dot]}"
+
 
 class MyGLViewWidget(gl.GLViewWidget):
     def __init__(self):
@@ -68,17 +72,20 @@ class MyGLViewWidget(gl.GLViewWidget):
         self.pan(dx, dy, 0, relative="view")
         self._prev_pan_pos = pos
 
+
+
 class Graphic3D(QDialog):
-    def __init__(self, caption, path: str):
+    def __init__(self, path: str):
         super().__init__()
         QDialog.__init__(self)
         self.window_width = 1500
         self.window_height = 1000
-        self.caption = caption
+        self.caption = f"{find_file_name(path)} осциллограмма"
         self.resize(self.window_width, self.window_height)
-        self.setWindowTitle(caption)
+        self.setWindowTitle(self.caption)
 
         self.graphic_widget = MyGLViewWidget()
+        self.graphic_widget.setBackgroundColor("w")
         self.figures = {}
         layout_v = QVBoxLayout()
 
@@ -94,6 +101,8 @@ class Graphic3D(QDialog):
         values_number = data.index.tolist()[-1] + 1
         x_max = max(data.iloc[:, 0].values.tolist())
         y_max = values_number
+
+
 
         for i in range(channels):
             key = f'channel_{i + 1}'
@@ -117,6 +126,7 @@ class Graphic3D(QDialog):
             # Adding points
             dots_array = np.array(dots)
             line = gl.GLLinePlotItem(pos = dots_array, width = 1, antialias = False, color = color)
+            line.setGLOptions("translucent")
             self.figures[key] = Figure(check_box=current_button, line=line, data=Points())
             self.graphic_widget.addItem(line)
             layout_v.addWidget(current_button)
@@ -126,10 +136,21 @@ class Graphic3D(QDialog):
         distance = max(x_max * 2, y_max * 2)
         self.graphic_widget.setCameraPosition(distance = distance, elevation = -90, azimuth = 0)
 
-        # Adding axis
-        axis = gl.GLAxisItem(glOptions="opaque")
-        axis.setSize(x_max * 2, y_max * 2, 0)
-        self.graphic_widget.addItem(axis)
+        # Setting up axis
+        axis_length = max(x_max, y_max)
+        axis_y_values = np.array([[-2 * axis_length, 0, 0], [2 * axis_length, 0, 0]])
+        axis_x_values = np.array([[0, -2 * axis_length, 0], [0, 2 * axis_length, 0]])
+        axis_y = gl.GLLinePlotItem(pos=axis_y_values, width=1, antialias=False, color="black")
+        axis_y.setGLOptions("translucent")
+        axis_x = gl.GLLinePlotItem(pos=axis_x_values, width=1, antialias=False, color="black")
+        axis_x.setGLOptions("translucent")
+        self.graphic_widget.addItem(axis_x)
+        self.graphic_widget.addItem(axis_y)
+
+        # # Adding axis
+        # axis = gl.GLAxisItem(glOptions="opaque")
+        # axis.setSize(x_max * 2, y_max * 2, 0)
+        # self.graphic_widget.addItem(axis)
 
         false_all = QPushButton('Снять все')
         false_all.clicked.connect(self.change_all_check_boxes_false)
@@ -142,6 +163,7 @@ class Graphic3D(QDialog):
         layout_h.addWidget(self.graphic_widget, 9)
         layout_h.addLayout(layout_v, 1)
         self.setLayout(layout_h)
+        self.show()
 
 
     def press_check_box(self, name):
@@ -166,6 +188,5 @@ class Graphic3D(QDialog):
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
-    g = Graphic3D(caption = "Test", path='small_test.csv')
-    g.show()
+    g = Graphic3D(path='small_test.csv')
     sys.exit(app.exec_())
