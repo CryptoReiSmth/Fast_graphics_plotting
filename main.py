@@ -30,10 +30,10 @@ class Figure:
     line: gl.GLLinePlotItem
     data: Points = Points()
 
-COLORS = ["orange", "green", "blue", "red", "aqua", "orange", "hotpink", "lightslategray", "yellow", "springgreen",
+COLORS = ["orange", "green", "blue", "red", "aqua", "orange", "hotpink", "yellow", "springgreen",
           "blueviolet", "orangered", "royalblue", "green", "plum", "paleturquoise", "palegreen", "navy", "turquoise",
           "mediumvioletred", "darkgoldenrod", "fuchsia", "steelblue", "lightcoral", "thistle", "khaki", "chartreuse",
-          "teal", "saddlebrown", "violet", "lemonchiffon", "olive"]
+          "teal", "saddlebrown", "violet", "lemonchiffon", "olive", "lightslategray"]
 
 def find_file_name(file_path):
     last_sep = file_path.rfind("/")
@@ -125,8 +125,7 @@ class Graphic3D(QDialog):
 
             # Adding points
             dots_array = np.array(dots)
-            line = gl.GLLinePlotItem(pos = dots_array, width = 1, antialias = False, color = color)
-            line.setGLOptions("translucent")
+            line = gl.GLLinePlotItem(pos = dots_array, width = 1, antialias = False, glOptions='translucent', color = color)
             self.figures[key] = Figure(check_box=current_button, line=line, data=Points())
             self.graphic_widget.addItem(line)
             layout_v.addWidget(current_button)
@@ -137,20 +136,19 @@ class Graphic3D(QDialog):
         self.graphic_widget.setCameraPosition(distance = distance, elevation = -90, azimuth = 0)
 
         # Setting up axis
-        axis_length = max(x_max, y_max)
-        axis_y_values = np.array([[-2 * axis_length, 0, 0], [2 * axis_length, 0, 0]])
-        axis_x_values = np.array([[0, -2 * axis_length, 0], [0, 2 * axis_length, 0]])
-        axis_y = gl.GLLinePlotItem(pos=axis_y_values, width=1, antialias=False, color="black")
-        axis_y.setGLOptions("translucent")
-        axis_x = gl.GLLinePlotItem(pos=axis_x_values, width=1, antialias=False, color="black")
-        axis_x.setGLOptions("translucent")
+        axis_length = 2 * max(x_max, y_max)
+        axis_y_values = np.array([[-axis_length, 0, 0], [axis_length, 0, 0]])
+        axis_x_values = np.array([[0, -axis_length, 0], [0, axis_length, 0]])
+        axis_y = gl.GLLinePlotItem(pos=axis_y_values, width=1, antialias=False, glOptions='translucent', color="black")
+        axis_x = gl.GLLinePlotItem(pos=axis_x_values, width=1, antialias=False, glOptions='translucent', color="black")
         self.graphic_widget.addItem(axis_x)
         self.graphic_widget.addItem(axis_y)
 
-        # # Adding axis
-        # axis = gl.GLAxisItem(glOptions="opaque")
-        # axis.setSize(x_max * 2, y_max * 2, 0)
-        # self.graphic_widget.addItem(axis)
+
+        self.grid = gl.GLGridItem(glOptions='translucent', color="lightslategray")
+        self.grid.setSize(2*axis_length, 2*axis_length, 0)
+        self.graphic_widget.addItem(self.grid)
+
 
         false_all = QPushButton('Снять все')
         false_all.clicked.connect(self.change_all_check_boxes_false)
@@ -184,6 +182,11 @@ class Graphic3D(QDialog):
             state = self.figures[name].check_box.isChecked()
             if state != is_check:
                 self.figures[name].check_box.click()
+
+
+    def print_gride(self):
+        pass
+
 
 
 if __name__ == '__main__':
