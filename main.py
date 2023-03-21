@@ -1,13 +1,15 @@
 from functools import partial
-import pyqtgraph.opengl as gl
 from typing import List
 import numpy as np
 import os
 import pandas as pd
 import sys
 try:
+    from OpenGL.GL import *
+    import pyqtgraph.opengl as gl
     from pyqtgraph import PlotDataItem, PlotWidget, mkPen, Vector
-    from PyQt5 import QtWidgets, QtCore
+    from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
+    from PyQt5 import QtWidgets, QtCore, QtGui
     from PyQt5.QtGui import QColor
     from PyQt5.QtCore import QUrl, pyqtSlot, pyqtSignal
     from PyQt5.QtQuick import QQuickView
@@ -30,10 +32,10 @@ class Figure:
     line: gl.GLLinePlotItem
     data: Points = Points()
 
-COLORS = ["orange", "green", "blue", "red", "aqua", "orange", "hotpink", "yellow", "springgreen",
+COLORS = ["orange", "green", "blue", "red", "aqua", "orange", "hotpink", "springgreen",
           "blueviolet", "orangered", "royalblue", "green", "plum", "paleturquoise", "palegreen", "navy", "turquoise",
           "mediumvioletred", "darkgoldenrod", "fuchsia", "steelblue", "lightcoral", "thistle", "khaki", "chartreuse",
-          "teal", "saddlebrown", "violet", "lemonchiffon", "olive", "lightslategray"]
+          "teal", "saddlebrown", "violet", "lemonchiffon", "olive", "yellow", "lightslategray"]
 
 def find_file_name(file_path):
     last_sep = file_path.rfind("/")
@@ -41,12 +43,42 @@ def find_file_name(file_path):
     return f"{file_path[last_sep + 1:last_dot]}"
 
 
+class MyGLGridItem(gl.GLGridItem):
+    def __init__(self, high = None):
+        super().__init__()
+        self.setGLOptions('translucent')
+        self.setColor((195, 195, 195))
+        self.high = high
+        self.current_scale = 5.0
+        self.setSize(self.high, self.high, 0)
+        self.antialias = True
+        self.scale(self.current_scale, self.current_scale, 0)
+
+    def setScale(self, scale = 1.0):
+        self.current_scale = scale
+        self.high = self.high // self.current_scale
+        if (self.high % 2) != 0:
+            self.high += 1
+        self.setSize(self.high, self.high, 0)
+        self.scale(self.current_scale, self.current_scale, 0)
+        self.update()
+
+    def doubleUpSpacing(self):
+        self.setScale(2)
+
+    def doubleDownSpacing(self):
+        self.setScale(0.5)
+
+
 class MyGLViewWidget(gl.GLViewWidget):
-    def __init__(self):
+    def __init__(self, axis_length):
         super().__init__()
         self._down_pos = None
         self._prev_zoom_pos = None
         self._prev_pan_pos = None
+        self.scale_iterator = 0
+
+        self.grid = MyGLGridItem(4 * axis_length)
 
     def mousePressEvent(self, ev):
         super(MyGLViewWidget, self).mousePressEvent(ev)
@@ -72,6 +104,27 @@ class MyGLViewWidget(gl.GLViewWidget):
         self.pan(dx, dy, 0, relative="view")
         self._prev_pan_pos = pos
 
+    def wheelEvent(self, ev):
+        delta = ev.angleDelta().x()
+        if delta == 0:
+            delta = ev.angleDelta().y()
+        if ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier:
+            self.opts['fov'] *= 0.999**delta
+        else:
+            if delta > 0:
+                self.scale_iterator += 1
+            else:
+                self.scale_iterator -= 1
+
+            if self.scale_iterator == 5:
+                self.grid.doubleDownSpacing()
+                self.scale_iterator = 0
+            elif self.scale_iterator == -5:
+                self.grid.doubleUpSpacing()
+                self.scale_iterator = 0
+
+            self.opts['distance'] *= 0.999**delta
+        self.update()
 
 
 class Graphic3D(QDialog):
@@ -84,8 +137,6 @@ class Graphic3D(QDialog):
         self.resize(self.window_width, self.window_height)
         self.setWindowTitle(self.caption)
 
-        self.graphic_widget = MyGLViewWidget()
-        self.graphic_widget.setBackgroundColor("w")
         self.figures = {}
         layout_v = QVBoxLayout()
 
@@ -101,9 +152,9 @@ class Graphic3D(QDialog):
         values_number = data.index.tolist()[-1] + 1
         x_max = max(data.iloc[:, 0].values.tolist())
         y_max = values_number
+        self.lines = []
 
-
-
+        # Add lines and buttons
         for i in range(channels):
             key = f'channel_{i + 1}'
             color = COLORS[i]
@@ -125,15 +176,11 @@ class Graphic3D(QDialog):
 
             # Adding points
             dots_array = np.array(dots)
-            line = gl.GLLinePlotItem(pos = dots_array, width = 1, antialias = False, glOptions='translucent', color = color)
+            line = gl.GLLinePlotItem(pos = dots_array, width = 3, antialias = False, glOptions='translucent', color = color)
+            self.lines.append(line)
             self.figures[key] = Figure(check_box=current_button, line=line, data=Points())
-            self.graphic_widget.addItem(line)
-            layout_v.addWidget(current_button)
 
-        # Setting up view point
-        self.graphic_widget.opts["center"] = Vector(x_max / 2, y_max / 2, 0)
-        distance = max(x_max * 2, y_max * 2)
-        self.graphic_widget.setCameraPosition(distance = distance, elevation = -90, azimuth = 0)
+            layout_v.addWidget(current_button)
 
         # Setting up axis
         axis_length = 2 * max(x_max, y_max)
@@ -141,13 +188,23 @@ class Graphic3D(QDialog):
         axis_x_values = np.array([[0, -axis_length, 0], [0, axis_length, 0]])
         axis_y = gl.GLLinePlotItem(pos=axis_y_values, width=1, antialias=False, glOptions='translucent', color="black")
         axis_x = gl.GLLinePlotItem(pos=axis_x_values, width=1, antialias=False, glOptions='translucent', color="black")
+
+        self.graphic_widget = MyGLViewWidget(axis_length = 4 * axis_length)
+        self.graphic_widget.setBackgroundColor("w")
+
+        for l in  self.lines:
+            self.graphic_widget.addItem(l)
+
+        # Setting up view point
+        self.graphic_widget.opts["center"] = Vector(x_max / 2, y_max / 2, 0)
+        distance = max(x_max * 2, y_max * 2)
+        self.graphic_widget.setCameraPosition(distance = distance, elevation = -90, azimuth = 0)
+
+        # Add axis
         self.graphic_widget.addItem(axis_x)
         self.graphic_widget.addItem(axis_y)
 
-
-        self.grid = gl.GLGridItem(glOptions='translucent', color="lightslategray")
-        self.grid.setSize(2*axis_length, 2*axis_length, 0)
-        self.graphic_widget.addItem(self.grid)
+        self.graphic_widget.addItem(self.graphic_widget.grid)
 
 
         false_all = QPushButton('Снять все')
@@ -162,7 +219,6 @@ class Graphic3D(QDialog):
         layout_h.addLayout(layout_v, 1)
         self.setLayout(layout_h)
         self.show()
-
 
     def press_check_box(self, name):
         if self.figures[name].check_box.isChecked():
@@ -182,10 +238,6 @@ class Graphic3D(QDialog):
             state = self.figures[name].check_box.isChecked()
             if state != is_check:
                 self.figures[name].check_box.click()
-
-
-    def print_gride(self):
-        pass
 
 
 
