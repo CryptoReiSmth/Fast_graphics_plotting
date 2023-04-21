@@ -10,7 +10,7 @@ try:
     from pyqtgraph import PlotDataItem, PlotWidget, mkPen, Vector
     from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
     from PyQt5 import QtWidgets, QtCore, QtGui
-    from PyQt5.QtGui import QColor
+    from PyQt5.QtGui import QColor, QFont, QVector3D
     from PyQt5.QtCore import QUrl, pyqtSlot, pyqtSignal
     from PyQt5.QtQuick import QQuickView
     from PyQt5.QtWidgets import QCheckBox, QDialog, QVBoxLayout, QHBoxLayout, QPushButton
@@ -43,42 +43,138 @@ def find_file_name(file_path):
     return f"{file_path[last_sep + 1:last_dot]}"
 
 
-class MyGLGridItem(gl.GLGridItem):
-    def __init__(self, high = None):
+
+
+class AxisValuesItem:
+    def __init__(self, axis_length, experiment_time = 1):
         super().__init__()
-        self.setGLOptions('translucent')
-        self.setColor((195, 195, 195))
-        self.high = high
-        self.current_scale = 5.0
-        self.setSize(self.high, self.high, 0)
-        self.antialias = True
-        self.scale(self.current_scale, self.current_scale, 0)
+        self.coordinate_dots = []
+        self.font = QFont('Helvetica', 10)
 
-    def setScale(self, scale = 1.0):
-        self.current_scale = scale
-        self.high = self.high // self.current_scale
-        if (self.high % 2) != 0:
-            self.high += 1
-        self.setSize(self.high, self.high, 0)
-        self.scale(self.current_scale, self.current_scale, 0)
-        self.update()
+        #TODO: рассчитать ширину влезаемого в экран пространства
+        self.max_x_value = experiment_time
+        self.current_width = axis_length // 4
+        self.current_spacing = self.current_width // 20
+        self.setUpTextItems()
 
-    def doubleUpSpacing(self):
-        self.setScale(2)
+    def setUpTextItems(self):
+        self.coordinate_dots = []
+        for dot in range(1, self.current_width + 1, self.current_spacing):
+            current_x_value = self.max_x_value / dot
+            x_dot_pos = gl.GLTextItem(color="black", pos=(-3.0, dot, 0), text=f"{current_x_value:.2f}", font=self.font)
+            x_minus_dot_pos = gl.GLTextItem(color="black", pos=(-3.0, -dot, 0), text=f"{-current_x_value:.2f}", font=self.font)
+            y_dot_pos = gl.GLTextItem(color="black", pos=(dot, -3.5, 0), text=f"{dot}", font=self.font)
+            y_minus_dot_pos = gl.GLTextItem(color="black", pos=(-dot, -4, 0), text=f"{-dot}", font=self.font)
 
-    def doubleDownSpacing(self):
-        self.setScale(0.5)
+            self.coordinate_dots.append(x_dot_pos)
+            if dot != 0:
+                self.coordinate_dots.append(y_dot_pos)
+                self.coordinate_dots.append(x_minus_dot_pos)
+                self.coordinate_dots.append(y_minus_dot_pos)
+
+    def doubleUpTextSpacing(self):
+        self.current_spacing *= 2
+        self.setUpTextItems()
+
+    def doubleDownTextSpacing(self):
+        self.current_spacing //= 2
+        if self.current_spacing == 0:
+            self.current_spacing = 1
+        self.setUpTextItems()
+
+class GridItem:
+    def __init__(self, length = 0):
+        self.grid_lines = None
+        self.color = QColor(195, 195, 195)
+        self.x_lines_list = []
+        self.y_lines_list = []
+        self.length = length + 1
+        self.starting_spacing = length // 40
+        self.spacing = length // 40
+        self.set_minimum_spacing = False
+        self.setSpacing(self.spacing)
+
+    def setSpacing(self, spacing = 1):
+        self.x_lines_list = []
+        self.y_lines_list = []
+        for current_y in range(spacing, self.length, spacing):
+            x_line_dots = np.array([(0, current_y, 0), (self.length, current_y, 0)])
+            line = gl.GLLinePlotItem(pos=x_line_dots, width=1, antialias=False, glOptions='translucent', color=self.color)
+            self.x_lines_list.append(line)
+
+        for current_x in range(spacing, self.length, spacing):
+            y_line_dots = np.array([(current_x, 0, 0), (current_x, self.length, 0)])
+            line = gl.GLLinePlotItem(pos=y_line_dots, width=1, antialias=False, glOptions='translucent', color=self.color)
+            self.y_lines_list.append(line)
+        self.grid_lines = self.x_lines_list + self.y_lines_list
+
+    def doubleUpGridSpacing(self):
+        if self.spacing > self.starting_spacing:
+            self.spacing = self.starting_spacing
+        self.spacing *= 2
+        self.setSpacing(self.spacing)
+        # print("UP")
+
+    def doubleDownGridSpacing(self):
+        self.spacing //= 2
+        if self.spacing == 0:
+            self.spacing = 1
+        if self.spacing == 1:
+            self.set_minimum_spacing = True
+        self.setSpacing(self.spacing)
+        # print("DOWN")
+    def getGrid(self):
+        return self.grid_lines
+
+# class MyGLGridItem(gl.GLGridItem):
+#     def __init__(self, high = None):
+#         super().__init__()
+#         self.setGLOptions('translucent')
+#         self.setColor((195, 195, 195))
+#         self.high = high
+#         if (self.high % 2) == 0:
+#             self.high += 1
+#         self.antialias = True
+#         # self.scale(self.current_scale, self.current_scale, 0)
+#         self.current_scale = self.high // 500
+#         self.setSize(self.high, self.high, 0)
+#
+#         # По какой-то странной причине self.scale не работает...
+#         # self.scale(self.current_scale, self.current_scale, 0)
+#         # print(self.current_scale, self.spacing())
+#
+#         self.setSpacing(self.current_scale, self.current_scale, self.current_scale)
+#         print(f"high = {self.high}, current_scale = {self.current_scale}")
+#
+#     def setScale(self, scale = 1.0):
+#         self.current_scale = scale
+#         # self.high = self.high // self.current_scale
+#         # if (self.high % 2) != 0:
+#         #     self.high += 1
+#         # self.setSize(self.high, self.high, 0)
+#         self.setSpacing(self.current_scale, self.current_scale, 0)
+#         print(f"INTO: high = {self.high}, current_scale = {self.current_scale}")
+#         self.update()
+#
+#     def doubleUpSpacing(self):
+#         self.setScale(2 * self.current_scale)
+#
+#     def doubleDownSpacing(self):
+#         self.setScale(0.5 * self.current_scale)
+#         print(f"DOUBLE: current_scale = {self.current_scale}")
 
 
 class MyGLViewWidget(gl.GLViewWidget):
-    def __init__(self, axis_length):
+    def __init__(self, axis_length, experiment_time):
         super().__init__()
         self._down_pos = None
         self._prev_zoom_pos = None
         self._prev_pan_pos = None
         self.scale_iterator = 0
-
-        self.grid = MyGLGridItem(4 * axis_length)
+        self.grid = GridItem(length=axis_length // 4)
+        self.addGrid()
+        self.axis_values = AxisValuesItem(axis_length=axis_length, experiment_time=experiment_time)
+        self.addAxisValues()
 
     def mousePressEvent(self, ev):
         super(MyGLViewWidget, self).mousePressEvent(ev)
@@ -111,24 +207,74 @@ class MyGLViewWidget(gl.GLViewWidget):
         if ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier:
             self.opts['fov'] *= 0.999**delta
         else:
+
+            print(f"spacing = {self.grid.spacing}, scale_iterator = {self.scale_iterator}, set_minimum = {self.grid.set_minimum_spacing}")
+
+            if self.scale_iterator == 5:
+                self.doubleDownGrid()
+                self.doubleDownTextValues()
+                self.scale_iterator = -4
+
+            elif self.scale_iterator == -5:
+                self.doubleUpGrid()
+                self.doubleUpTextValues()
+                self.scale_iterator = 4
+
             if delta > 0:
                 self.scale_iterator += 1
             else:
                 self.scale_iterator -= 1
 
-            if self.scale_iterator == 5:
-                self.grid.doubleDownSpacing()
-                self.scale_iterator = 0
-            elif self.scale_iterator == -5:
-                self.grid.doubleUpSpacing()
-                self.scale_iterator = 0
+            if self.grid.set_minimum_spacing:
+                self.scale_iterator = -5
+                self.grid.set_minimum_spacing = False
 
             self.opts['distance'] *= 0.999**delta
         self.update()
 
+    def addGrid(self):
+        for line in self.grid.getGrid():
+            self.addItem(line)
+
+    def removeGrid(self):
+        for line in self.grid.getGrid():
+            self.removeItem(line)
+    def doubleUpGrid(self):
+        self.removeGrid()
+        self.grid.doubleUpGridSpacing()
+        self.addGrid()
+        self.scale_iterator = 0
+
+    def doubleDownGrid(self):
+        print(f"set_minimum = {self.grid.set_minimum_spacing}")
+        self.removeGrid()
+        self.grid.doubleDownGridSpacing()
+        self.addGrid()
+        self.scale_iterator = 0
+
+    def doubleUpTextValues(self):
+        self.removeAxisValues()
+        self.axis_values.doubleUpTextSpacing()
+        self.addAxisValues()
+
+    def doubleDownTextValues(self):
+        self.removeAxisValues()
+        self.axis_values.doubleDownTextSpacing()
+        self.addAxisValues()
+
+
+    def addAxisValues(self):
+        for axis_value in self.axis_values.coordinate_dots:
+            self.addItem(axis_value)
+
+    def removeAxisValues(self):
+        for axis_value in self.axis_values.coordinate_dots:
+            self.removeItem(axis_value)
+
+
 
 class Graphic3D(QDialog):
-    def __init__(self, path: str):
+    def __init__(self, path: str, experiment_time = 1):
         super().__init__()
         QDialog.__init__(self)
         self.window_width = 1500
@@ -182,6 +328,10 @@ class Graphic3D(QDialog):
 
             layout_v.addWidget(current_button)
 
+
+        # Setting up axis values equal to experiment time
+        self.experiment_time = experiment_time
+
         # Setting up axis
         axis_length = 2 * max(x_max, y_max)
         axis_y_values = np.array([[-axis_length, 0, 0], [axis_length, 0, 0]])
@@ -189,7 +339,7 @@ class Graphic3D(QDialog):
         axis_y = gl.GLLinePlotItem(pos=axis_y_values, width=1, antialias=False, glOptions='translucent', color="black")
         axis_x = gl.GLLinePlotItem(pos=axis_x_values, width=1, antialias=False, glOptions='translucent', color="black")
 
-        self.graphic_widget = MyGLViewWidget(axis_length = 4 * axis_length)
+        self.graphic_widget = MyGLViewWidget(axis_length = 4 * axis_length, experiment_time=self.experiment_time)
         self.graphic_widget.setBackgroundColor("w")
 
         for l in  self.lines:
@@ -204,9 +354,6 @@ class Graphic3D(QDialog):
         self.graphic_widget.addItem(axis_x)
         self.graphic_widget.addItem(axis_y)
 
-        self.graphic_widget.addItem(self.graphic_widget.grid)
-
-
         false_all = QPushButton('Снять все')
         false_all.clicked.connect(self.change_all_check_boxes_false)
         true_all = QPushButton('Поставить все')
@@ -214,17 +361,46 @@ class Graphic3D(QDialog):
         layout_v.addWidget(true_all)
         layout_v.addWidget(false_all)
 
+
+        # Add coordinates
+        # for dot in range(0, axis_length + 1, 10):
+        #     x_dot_pos = gl.GLTextItem(color="black", pos=(-0.5, dot, 0), text=f"{dot}", font=QFont('Helvetica', 10))
+        #     x_minus_dot_pos = gl.GLTextItem(color="black", pos=(-0.5, -dot, 0), text=f"{-dot}", font=QFont('Helvetica', 10))
+        #     y_dot_pos = gl.GLTextItem(color="black", pos=(dot, -3, 0), text=f"{dot}", font=QFont('Helvetica', 10))
+        #     y_minus_dot_pos = gl.GLTextItem(color="black", pos=(-dot, -3, 0), text=f"{-dot}", font=QFont('Helvetica', 10))
+        #
+        #     self.graphic_widget.addItem(x_dot_pos)
+        #     self.graphic_widget.addItem(x_minus_dot_pos)
+        #     self.graphic_widget.addItem(y_dot_pos)
+        #     self.graphic_widget.addItem(y_minus_dot_pos)
+        # self.coordinate_dots = []
+        # self.font = QFont('Helvetica', 10)
+        #
+        # # TODO: рассчитать ширину влезаемого в экран пространства
+        # self.current_width = axis_length
+        # for dot in range(0, self.current_width + 1, 10):
+        #     x_dot_pos = gl.GLTextItem(color="black", pos=(-0.5, dot, 0), text=f"{dot}", font=self.font)
+        #     x_minus_dot_pos = gl.GLTextItem(color="black", pos=(-0.5, -dot, 0), text=f"{-dot}", font=self.font)
+        #     y_dot_pos = gl.GLTextItem(color="black", pos=(dot, -1.5, 0), text=f"{dot}", font=self.font)
+        #     y_minus_dot_pos = gl.GLTextItem(color="black", pos=(-dot, -3, 0), text=f"{-dot}", font=self.font)
+        #
+        #     self.graphic_widget.addItem(x_dot_pos)
+        #     if dot != 0:
+        #         self.graphic_widget.addItem(x_minus_dot_pos)
+        #         self.graphic_widget.addItem(y_dot_pos)
+        #         self.graphic_widget.addItem(y_minus_dot_pos)
+
         layout_h = QHBoxLayout()
         layout_h.addWidget(self.graphic_widget, 9)
         layout_h.addLayout(layout_v, 1)
         self.setLayout(layout_h)
         self.show()
 
-    def press_check_box(self, name):
-        if self.figures[name].check_box.isChecked():
-            self.graphic_widget.addItem(self.figures[name].line)
+    def press_check_box(self, figure_name):
+        if self.figures[figure_name].check_box.isChecked():
+            self.graphic_widget.addItem(self.figures[figure_name].line)
         else:
-            self.graphic_widget.removeItem(self.figures[name].line)
+            self.graphic_widget.removeItem(self.figures[figure_name].line)
 
 
     def change_all_check_boxes_true(self):
@@ -243,5 +419,5 @@ class Graphic3D(QDialog):
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
-    g = Graphic3D(path='small_test.csv')
+    g = Graphic3D(path='small_test.csv', experiment_time = 5)
     sys.exit(app.exec_())
