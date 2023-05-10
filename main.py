@@ -51,26 +51,34 @@ class AxisValuesItem:
         self.coordinate_dots = []
         self.font = QFont('Helvetica', 10)
 
-        #TODO: рассчитать ширину влезаемого в экран пространства
-        self.max_x_value = experiment_time
+        print(f"experiment_time = {experiment_time}")
+
         self.current_width = axis_length // 4
         self.current_spacing = self.current_width // 20
+
+        # TODO: рассчитать ширину влезаемого в экран пространства
+        self.max_x_value = experiment_time
+        self.max_y_value = self.current_width
+
+        self.max_digits_number = len(str(self.max_y_value))
+
         self.setUpTextItems()
 
     def setUpTextItems(self):
         self.coordinate_dots = []
+        current_x_value = 0
+        step = self.max_x_value / 20
         for dot in range(1, self.current_width + 1, self.current_spacing):
-            current_x_value = self.max_x_value / dot
+            current_x_value += step
+            current_y_value = dot
+
             x_dot_pos = gl.GLTextItem(color="black", pos=(-3.0, dot, 0), text=f"{current_x_value:.2f}", font=self.font)
-            x_minus_dot_pos = gl.GLTextItem(color="black", pos=(-3.0, -dot, 0), text=f"{-current_x_value:.2f}", font=self.font)
-            y_dot_pos = gl.GLTextItem(color="black", pos=(dot, -3.5, 0), text=f"{dot}", font=self.font)
-            y_minus_dot_pos = gl.GLTextItem(color="black", pos=(-dot, -4, 0), text=f"{-dot}", font=self.font)
+            y_dot_pos = gl.GLTextItem(color="black", pos=(current_y_value, -2.0 * self.max_digits_number, 0), text=f"{current_y_value}", font=self.font)
+
+            print(f"dot = {dot}, current_x_value = {current_x_value}")
 
             self.coordinate_dots.append(x_dot_pos)
-            if dot != 0:
-                self.coordinate_dots.append(y_dot_pos)
-                self.coordinate_dots.append(x_minus_dot_pos)
-                self.coordinate_dots.append(y_minus_dot_pos)
+            self.coordinate_dots.append(y_dot_pos)
 
     def doubleUpTextSpacing(self):
         self.current_spacing *= 2
@@ -125,43 +133,6 @@ class GridItem:
         # print("DOWN")
     def getGrid(self):
         return self.grid_lines
-
-# class MyGLGridItem(gl.GLGridItem):
-#     def __init__(self, high = None):
-#         super().__init__()
-#         self.setGLOptions('translucent')
-#         self.setColor((195, 195, 195))
-#         self.high = high
-#         if (self.high % 2) == 0:
-#             self.high += 1
-#         self.antialias = True
-#         # self.scale(self.current_scale, self.current_scale, 0)
-#         self.current_scale = self.high // 500
-#         self.setSize(self.high, self.high, 0)
-#
-#         # По какой-то странной причине self.scale не работает...
-#         # self.scale(self.current_scale, self.current_scale, 0)
-#         # print(self.current_scale, self.spacing())
-#
-#         self.setSpacing(self.current_scale, self.current_scale, self.current_scale)
-#         print(f"high = {self.high}, current_scale = {self.current_scale}")
-#
-#     def setScale(self, scale = 1.0):
-#         self.current_scale = scale
-#         # self.high = self.high // self.current_scale
-#         # if (self.high % 2) != 0:
-#         #     self.high += 1
-#         # self.setSize(self.high, self.high, 0)
-#         self.setSpacing(self.current_scale, self.current_scale, 0)
-#         print(f"INTO: high = {self.high}, current_scale = {self.current_scale}")
-#         self.update()
-#
-#     def doubleUpSpacing(self):
-#         self.setScale(2 * self.current_scale)
-#
-#     def doubleDownSpacing(self):
-#         self.setScale(0.5 * self.current_scale)
-#         print(f"DOUBLE: current_scale = {self.current_scale}")
 
 
 class MyGLViewWidget(gl.GLViewWidget):
