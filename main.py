@@ -43,8 +43,6 @@ def find_file_name(file_path):
     return f"{file_path[last_sep + 1:last_dot]}"
 
 
-
-
 class AxisValuesItem:
     def __init__(self, axis_length, experiment_time = 1):
         super().__init__()
@@ -332,35 +330,6 @@ class Graphic3D(QDialog):
         layout_v.addWidget(true_all)
         layout_v.addWidget(false_all)
 
-
-        # Add coordinates
-        # for dot in range(0, axis_length + 1, 10):
-        #     x_dot_pos = gl.GLTextItem(color="black", pos=(-0.5, dot, 0), text=f"{dot}", font=QFont('Helvetica', 10))
-        #     x_minus_dot_pos = gl.GLTextItem(color="black", pos=(-0.5, -dot, 0), text=f"{-dot}", font=QFont('Helvetica', 10))
-        #     y_dot_pos = gl.GLTextItem(color="black", pos=(dot, -3, 0), text=f"{dot}", font=QFont('Helvetica', 10))
-        #     y_minus_dot_pos = gl.GLTextItem(color="black", pos=(-dot, -3, 0), text=f"{-dot}", font=QFont('Helvetica', 10))
-        #
-        #     self.graphic_widget.addItem(x_dot_pos)
-        #     self.graphic_widget.addItem(x_minus_dot_pos)
-        #     self.graphic_widget.addItem(y_dot_pos)
-        #     self.graphic_widget.addItem(y_minus_dot_pos)
-        # self.coordinate_dots = []
-        # self.font = QFont('Helvetica', 10)
-        #
-        # # TODO: рассчитать ширину влезаемого в экран пространства
-        # self.current_width = axis_length
-        # for dot in range(0, self.current_width + 1, 10):
-        #     x_dot_pos = gl.GLTextItem(color="black", pos=(-0.5, dot, 0), text=f"{dot}", font=self.font)
-        #     x_minus_dot_pos = gl.GLTextItem(color="black", pos=(-0.5, -dot, 0), text=f"{-dot}", font=self.font)
-        #     y_dot_pos = gl.GLTextItem(color="black", pos=(dot, -1.5, 0), text=f"{dot}", font=self.font)
-        #     y_minus_dot_pos = gl.GLTextItem(color="black", pos=(-dot, -3, 0), text=f"{-dot}", font=self.font)
-        #
-        #     self.graphic_widget.addItem(x_dot_pos)
-        #     if dot != 0:
-        #         self.graphic_widget.addItem(x_minus_dot_pos)
-        #         self.graphic_widget.addItem(y_dot_pos)
-        #         self.graphic_widget.addItem(y_minus_dot_pos)
-
         layout_h = QHBoxLayout()
         layout_h.addWidget(self.graphic_widget, 9)
         layout_h.addLayout(layout_v, 1)
@@ -387,8 +356,12 @@ class Graphic3D(QDialog):
                 self.figures[name].check_box.click()
 
 
-
 if __name__ == '__main__':
+    file_path = "test.csv"
+    experiment_time = 5
+    if len(sys.argv) > 2:
+        file_path = sys.argv[1]
+        experiment_time = sys.argv[2]
     app = QtWidgets.QApplication(sys.argv)
-    g = Graphic3D(path='small_test.csv', experiment_time = 5)
+    g = Graphic3D(path=file_path, experiment_time=experiment_time)
     sys.exit(app.exec_())
