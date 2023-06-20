@@ -42,6 +42,27 @@ def find_file_name(file_path):
     last_dot = file_path.rfind(".")
     return f"{file_path[last_sep + 1:last_dot]}"
 
+def file_data_parse(file_data):
+    return file_data
+
+def file_path_parse(file_path):
+    _, file_extension = os.path.splitext(file_path)
+    data = None
+    if file_extension == '.csv':
+        data = pd.read_csv(filepath_or_buffer=file_path, sep=';', header=None)
+    elif file_extension == '.xlsx':
+        data = pd.read_excel(io=file_path)
+
+    channels = data.columns.tolist()[-1] + 1
+    values_number = data.index.tolist()[-1] + 1
+    parsed_data = []
+
+    for line in range(channels):
+        parsed_data.append([])
+        for value in range(values_number):
+            parsed_data[line].append(data[line][value])
+    return parsed_data
+
 
 class AxisValuesItem:
     def __init__(self, axis_length, experiment_time = 1):
@@ -198,6 +219,22 @@ class MyGLViewWidget(gl.GLViewWidget):
                 self.scale_iterator = -5
                 self.grid.set_minimum_spacing = False
 
+            #
+            # if delta > 0:
+            #     if self.scale_iterator == 5:
+            #         self.doubleDownGrid()
+            #         self.doubleDownTextValues()
+            #         self.scale_iterator = 0
+            #     else:
+            #         self.scale_iterator += 1
+            # else:
+            #     if self.scale_iterator == 0:
+            #         self.doubleUpGrid()
+            #         self.doubleUpTextValues()
+            #         self.scale_iterator = 0
+            #     else:
+            #         self.scale_iterator -= 1
+
             self.opts['distance'] *= 0.999**delta
         self.update()
 
@@ -243,12 +280,27 @@ class MyGLViewWidget(gl.GLViewWidget):
 
 
 class Graphic3D(QDialog):
-    def __init__(self, path: str, experiment_time = 1):
-        super().__init__()
-        QDialog.__init__(self)
+    def __init__(self, file_data=None, parent=None, file_path=None, window_ind=0, experiment_time=10):
+        if parent is None:
+            super().__init__()
+        else:
+            super().__init__(parent)
+
+        print("ENTER DONE!")
+
+        self.data = None
+        if file_path is not None:
+            self.data = file_path_parse(file_path)
+            self.caption = f"{find_file_name(file_path)} осциллограмма"
+            print("PATH CHECK")
+        elif file_data is not None:
+            self.data = file_data_parse(file_data)
+            self.caption = f"Осциллограмма №{window_ind + 1}"
+
+        print("DATA DONE!")
+
         self.window_width = 1500
         self.window_height = 1000
-        self.caption = f"{find_file_name(path)} осциллограмма"
         self.resize(self.window_width, self.window_height)
         self.setWindowTitle(self.caption)
 
@@ -256,23 +308,34 @@ class Graphic3D(QDialog):
         layout_v = QVBoxLayout()
 
         # Import data from .csv
-        _, file_extension = os.path.splitext(path)
-        data = None
-        if file_extension == '.csv':
-            data = pd.read_csv(filepath_or_buffer=path, sep=';', header=None)
-        elif file_extension == '.xlsx':
-            data = pd.read_excel(io=path)
 
-        channels = data.columns.tolist()[-1] + 1
-        values_number = data.index.tolist()[-1] + 1
-        x_max = max(data.iloc[:, 0].values.tolist())
-        y_max = values_number
+        # data = self.parse_file_data()
+        # channels = data.columns.tolist()[-1] + 1
+        # values_number = data.index.tolist()[-1] + 1
+        # y_max = max(data.iloc[:, 0].values.tolist())
+        # x_max = values_number
+        # self.lines = []
+
+
+        # Если data -- массив
+        channels = len(self.data)
+        values_number = 0
+        for array in self.data:
+            values_number = max(values_number, len(array))
+
+        x_max = values_number
+        y_max = self.data[0][0]
+        for array in self.data:
+            for item in array:
+                y_max = max(y_max, item)
+
+        print("DATA ANALISE DONE!")
+
         self.lines = []
-
         # Add lines and buttons
-        for i in range(channels):
-            key = f'channel_{i + 1}'
-            color = COLORS[i]
+        for channel in range(channels):
+            key = f'channel_{channel + 1}'
+            color = COLORS[channel]
 
             # Setting up buttons
             current_button = QCheckBox(f"{key}")
@@ -282,9 +345,10 @@ class Graphic3D(QDialog):
             current_button.clicked.connect(partial(self.press_check_box, key))
 
             # Getting channel data
-            channel_data = data.iloc[:, i].values.tolist()
+            channel_data = self.data[channel]
+            #channel_data = data.iloc[:, channel].values.tolist()
             channel_x_max = max(channel_data)
-            x_max = max(x_max, channel_x_max)
+            y_max = max(y_max, channel_x_max)
             dots = []
             for dot in range(len(channel_data)):
                 dots.append((channel_data[dot], dot, 0))
@@ -296,13 +360,12 @@ class Graphic3D(QDialog):
             self.figures[key] = Figure(check_box=current_button, line=line, data=Points())
 
             layout_v.addWidget(current_button)
-
-
+        print("ADD LINES DONE!")
         # Setting up axis values equal to experiment time
         self.experiment_time = experiment_time
 
         # Setting up axis
-        axis_length = 2 * max(x_max, y_max)
+        axis_length = 2 * max(y_max, x_max)
         axis_y_values = np.array([[-axis_length, 0, 0], [axis_length, 0, 0]])
         axis_x_values = np.array([[0, -axis_length, 0], [0, axis_length, 0]])
         axis_y = gl.GLLinePlotItem(pos=axis_y_values, width=1, antialias=False, glOptions='translucent', color="black")
@@ -315,8 +378,8 @@ class Graphic3D(QDialog):
             self.graphic_widget.addItem(l)
 
         # Setting up view point
-        self.graphic_widget.opts["center"] = Vector(x_max / 2, y_max / 2, 0)
-        distance = max(x_max * 2, y_max * 2)
+        self.graphic_widget.opts["center"] = Vector(y_max / 2, x_max / 2, 0)
+        distance = max(y_max * 2, x_max * 2)
         self.graphic_widget.setCameraPosition(distance = distance, elevation = -90, azimuth = 0)
 
         # Add axis
@@ -356,12 +419,23 @@ class Graphic3D(QDialog):
                 self.figures[name].check_box.click()
 
 
+    # def parse_file_data(self):
+    #     _, file_extension = os.path.splitext(self.file_path)
+    #     data = None
+    #     if file_extension == '.csv':
+    #         data = pd.read_csv(filepath_or_buffer=self.file_path, sep=';', header=None)
+    #     elif file_extension == '.xlsx':
+    #         data = pd.read_excel(io=self.file_path)
+    #     print(type(data))
+    #     return data
+
 if __name__ == '__main__':
+    file_data = [[68, 70, 69, 67, 68, 67, 67, 68, 70, 70, 69, 71, 69, 71, 68, 70, 69, 69], [18, 20, 19, 17, 18, 17, 17, 18, 20, 20, 19, 21, 19, 21, 18, 20, 19, 19], [28, 30, 29, 27, 28, 27, 27, 28, 30, 30, 29, 31, 29, 31, 28, 30, 29, 29], [38, 40, 39, 37, 38, 37, 37, 38, 40, 40, 39, 41, 39, 41, 38, 40, 39, 39], [48, 50, 49, 47, 48, 47, 47, 48, 50, 50, 49, 51, 49, 51, 48, 50, 49, 49], [58, 60, 59, 57, 58, 57, 57, 58, 60, 60, 59, 61, 59, 61, 58, 60, 59, 59], [68, 70, 69, 67, 68, 67, 67, 68, 70, 70, 69, 71, 69, 71, 68, 70, 69, 69], [78, 80, 79, 77, 78, 77, 77, 78, 80, 80, 79, 81, 79, 81, 78, 80, 79, 79], [88, 90, 89, 87, 88, 87, 87, 88, 90, 90, 89, 91, 89, 91, 88, 90, 89, 89], [98, 100, 99, 97, 98, 97, 97, 98, 100, 100, 99, 101, 99, 101, 98, 100, 99, 99], [108, 110, 109, 107, 108, 107, 107, 108, 110, 110, 109, 111, 109, 111, 108, 110, 109, 109], [118, 120, 119, 117, 118, 117, 117, 118, 120, 120, 119, 121, 119, 121, 118, 120, 119, 119]]
     file_path = "test.csv"
     experiment_time = 5
     if len(sys.argv) > 2:
         file_path = sys.argv[1]
         experiment_time = sys.argv[2]
     app = QtWidgets.QApplication(sys.argv)
-    g = Graphic3D(path=file_path, experiment_time=experiment_time)
+    g = Graphic3D(file_path=file_path, experiment_time=experiment_time)
     sys.exit(app.exec_())
