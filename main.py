@@ -181,23 +181,27 @@ class GridItem:
 
 
 class MyGLViewWidget(gl.GLViewWidget):
+    """ Класс виджета графика, основанный на gl.GLViewWidget.
+    Добавлены функции  """
     def __init__(self, axis_length, experiment_time):
         print(f"Graphic axis_length = {axis_length}")
         super().__init__()
         self._down_pos = None
         self._prev_zoom_pos = None
         self._prev_pan_pos = None
-        self.scale_iterator = 0
+        self.scale_iterator = 0     # переменная счётчик для масштабирования сетки и подписей осей
         self.grid = GridItem(length=axis_length//4)
         self.addGrid()
         self.axis_values = AxisValuesItem(axis_length=axis_length, experiment_time=experiment_time)
         self.addAxisValues()
 
     def mousePressEvent(self, ev):
+        """ Событие нажатия мыши. Дополнительно сохраняет позицию курсора при нажатии."""
         super(MyGLViewWidget, self).mousePressEvent(ev)
         self._down_pos = self.mousePos
 
     def mouseReleaseEvent(self, ev):
+        """ Событие отжатия мыши. Позволяет перемещать график в 2D."""
         super(MyGLViewWidget, self).mouseReleaseEvent(ev)
         if self._down_pos == ev.pos():
             if ev.button() == 1:
@@ -208,6 +212,7 @@ class MyGLViewWidget(gl.GLViewWidget):
         self._prev_pan_pos = None
 
     def mouseMoveEvent(self, ev):
+        """ Событие движения мыши. Позволяет перемещать график в 2D."""
         pos = ev.pos().x(), ev.pos().y()
         if not hasattr(self, '_prev_pan_pos') or not self._prev_pan_pos:
             self._prev_pan_pos = pos
@@ -218,6 +223,8 @@ class MyGLViewWidget(gl.GLViewWidget):
         self._prev_pan_pos = pos
 
     def wheelEvent(self, ev):
+        """ Событие колёсика мыши. Позволяет регулировать масштаб графика.
+        Так же масштабирует сетку и подписи координатных осей."""
         delta = ev.angleDelta().x()
         if delta == 0:
             delta = ev.angleDelta().y()
@@ -227,21 +234,24 @@ class MyGLViewWidget(gl.GLViewWidget):
 
             #print(f"spacing = {self.grid.spacing}, scale_iterator = {self.scale_iterator}, set_minimum = {self.grid.set_minimum_spacing}")
 
-            if self.scale_iterator == 5:
-                self.doubleDownGrid()
-                self.doubleDownTextValues()
-                self.scale_iterator = -4
-
-            elif self.scale_iterator == -5:
-                self.doubleUpGrid()
-                self.doubleUpTextValues()
-                self.scale_iterator = 4
-
             if delta > 0:
                 self.scale_iterator += 1
             else:
                 self.scale_iterator -= 1
 
+            # Увеличение масштаба
+            if self.scale_iterator == 5:
+                self.doubleDownGrid()
+                self.doubleDownTextValues()
+                self.scale_iterator = -4
+
+            # Уменьшение масштаба
+            elif self.scale_iterator == -5:
+                self.doubleUpGrid()
+                self.doubleUpTextValues()
+                self.scale_iterator = 4
+
+            # Проверка, установлен ли минимальный масштаб
             if self.grid.set_minimum_spacing:
                 self.scale_iterator = -5
                 self.grid.set_minimum_spacing = False
@@ -266,43 +276,50 @@ class MyGLViewWidget(gl.GLViewWidget):
         self.update()
 
     def addGrid(self):
+        """ Добавляет линии сетки."""
         for line in self.grid.getGrid():
             self.addItem(line)
 
     def removeGrid(self):
+        """ Удаляет сетку."""
         for line in self.grid.getGrid():
             self.removeItem(line)
     def doubleUpGrid(self):
+        """ Увеличивает масштаб сетки в 2 раза."""
         self.removeGrid()
         self.grid.doubleUpGridSpacing()
         self.addGrid()
         self.scale_iterator = 0
 
     def doubleDownGrid(self):
+        """ Уменьшает масштаб сетки в 2 раза."""
         #print(f"set_minimum = {self.grid.set_minimum_spacing}")
         self.removeGrid()
         self.grid.doubleDownGridSpacing()
         self.addGrid()
         self.scale_iterator = 0
 
+    def addAxisValues(self):
+        """ Добавляет подписи координатных осей."""
+        for axis_value in self.axis_values.coordinate_dots:
+            self.addItem(axis_value)
+
+    def removeAxisValues(self):
+        """ Удаляет подписи координатных осей."""
+        for axis_value in self.axis_values.coordinate_dots:
+            self.removeItem(axis_value)
+
     def doubleUpTextValues(self):
+        """ Увеличивает частоту подписей координатных осей в 2 раза."""
         self.removeAxisValues()
         self.axis_values.doubleUpTextSpacing()
         self.addAxisValues()
 
     def doubleDownTextValues(self):
+        """ Уменьшает частоту подписей координатных осей в 2 раза."""
         self.removeAxisValues()
         self.axis_values.doubleDownTextSpacing()
         self.addAxisValues()
-
-
-    def addAxisValues(self):
-        for axis_value in self.axis_values.coordinate_dots:
-            self.addItem(axis_value)
-
-    def removeAxisValues(self):
-        for axis_value in self.axis_values.coordinate_dots:
-            self.removeItem(axis_value)
 
 
 class Graphic3D(QDialog):
@@ -343,7 +360,6 @@ class Graphic3D(QDialog):
         values_number = self.data.index.tolist()[-1] + 1
         y_max = max(self.data.iloc[:, 0].values.tolist())
         x_max = values_number
-        self.lines = []
 
         # Если data -- массив
         # channels = len(self.data)
@@ -368,8 +384,7 @@ class Graphic3D(QDialog):
             # Настройка кнопки отображения линии
             current_button = self.set_up_line_check_box(key, color)
 
-            # Getting channel data
-            # channel_data = self.data[channel]
+            # Выбираем данные для построения линии
             channel_data = self.data.iloc[:, channel].values.tolist()
             #print(f"channel_data = {channel_data}")
             channel_x_max = max(channel_data)
@@ -378,9 +393,8 @@ class Graphic3D(QDialog):
             for dot in range(len(channel_data)):
                 dots.append((channel_data[dot], dot, 0))
 
-            # Adding points
+            # Добавляем линию
             dots_array = np.array(dots)
-            #print(f"dots_array = {dots_array}")
             line = gl.GLLinePlotItem(pos = dots_array, width = 3, antialias = False, glOptions='translucent', color = color)
             self.lines.append(line)
             self.figures[key] = Figure(check_box=current_button, line=line, data=Points())
@@ -395,10 +409,11 @@ class Graphic3D(QDialog):
         axis_y = gl.GLLinePlotItem(pos=axis_y_values, width=1, antialias=False, glOptions='translucent', color="black")
         axis_x = gl.GLLinePlotItem(pos=axis_x_values, width=1, antialias=False, glOptions='translucent', color="black")
 
+        # Создание виджета графика
         self.graphic_widget = MyGLViewWidget(axis_length = axis_length, experiment_time=self.experiment_time)
         self.graphic_widget.setBackgroundColor("w")
 
-        # Setting up view point
+        # Задаём точку обзора
         self.graphic_widget.opts["center"] = Vector(y_max / 2, x_max / 2, 0)
         distance = max(y_max * 2, x_max * 2)
         self.graphic_widget.setCameraPosition(distance = distance, elevation = -90, azimuth = 0)
@@ -450,7 +465,8 @@ class Graphic3D(QDialog):
 
     def press_check_box(self, figure_name):
         """ Событие нажатие на кнопку отображения линии.
-        Скрывает или показывает соответствующую линию."""
+        Скрывает или показывает соответствующую линию.
+        :param figure_name: фигура вида линия - кнопка отображения."""
         if self.figures[figure_name].check_box.isChecked():
             self.graphic_widget.addItem(self.figures[figure_name].line)
         else:
@@ -484,10 +500,6 @@ class Graphic3D(QDialog):
         current_button.clicked.connect(partial(self.press_check_box, key))
 
         return current_button
-
-
-
-
 
 
 if __name__ == '__main__':
