@@ -46,30 +46,6 @@ def find_file_name(file_path):
     return f"{file_path[last_sep + 1:last_dot]}"
 
 
-# Effort of converting into list
-#
-# def parse_file_data(file_data):
-#     return file_data
-#
-# def parse_file_path(file_path):
-#     _, file_extension = os.path.splitext(file_path)
-#     data = None
-#     if file_extension == '.csv':
-#         data = pd.read_csv(filepath_or_buffer=file_path, sep=';', header=None)
-#     elif file_extension == '.xlsx':
-#         data = pd.read_excel(io=file_path)
-#
-#     channels = data.columns.tolist()[-1] + 1
-#     values_number = data.index.tolist()[-1] + 1
-#     parsed_data = []
-#
-#     for line in range(channels):
-#         parsed_data.append([])
-#         for value in range(values_number):
-#             parsed_data[line].append(data[line][value])
-#     return parsed_data
-
-
 class AxisValuesItem:
     """ Класс, хранящий и создающий подписи для координатных осей. """
     def __init__(self, axis_length, experiment_time = 1):
@@ -103,8 +79,6 @@ class AxisValuesItem:
             x_dot_pos = gl.GLTextItem(color="black", pos=(-3.0, dot, 0), text=f"{current_x_value:.2f}", font=self.font)
             y_dot_pos = gl.GLTextItem(color="black", pos=(current_y_value, -2.0 * self.max_digits_number, 0), text=f"{current_y_value}", font=self.font)
 
-            #print(f"dot = {dot}, current_x_value = {current_x_value}")
-
             self.coordinate_dots.append(x_dot_pos)
             self.coordinate_dots.append(y_dot_pos)
 
@@ -130,7 +104,6 @@ class GridItem:
         self.x_lines_list = []
         self.y_lines_list = []
         self.length = length + 1
-        print(f"grid: self.length = {self.length}")
 
         #TODO: потенциально улучшить
         self.starting_spacing = length // 40
@@ -163,7 +136,6 @@ class GridItem:
             self.spacing = self.starting_spacing
         self.spacing *= 2
         self.setSpacing(self.spacing)
-        # print("UP")
 
     def doubleDownGridSpacing(self):
         """Уменьшает масштаб сетки в 2 раза, если он не станет меньше 1."""
@@ -173,7 +145,6 @@ class GridItem:
         if self.spacing == 1:
             self.set_minimum_spacing = True
         self.setSpacing(self.spacing)
-        # print("DOWN")
     def getGrid(self):
         """Возвращает сетку.
         :return: массив линий, образующих сетку."""
@@ -184,7 +155,6 @@ class MyGLViewWidget(gl.GLViewWidget):
     """ Класс виджета графика, основанный на gl.GLViewWidget.
     Добавлены функции  """
     def __init__(self, axis_length, experiment_time):
-        print(f"Graphic axis_length = {axis_length}")
         super().__init__()
         self._down_pos = None
         self._prev_zoom_pos = None
@@ -231,14 +201,12 @@ class MyGLViewWidget(gl.GLViewWidget):
         if ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier:
             self.opts['fov'] *= 0.999**delta
         else:
-
-            #print(f"spacing = {self.grid.spacing}, scale_iterator = {self.scale_iterator}, set_minimum = {self.grid.set_minimum_spacing}")
-
             if delta > 0:
                 self.scale_iterator += 1
             else:
                 self.scale_iterator -= 1
 
+            # TODO: придумать более аккуратный способ масштабирования
             # Увеличение масштаба
             if self.scale_iterator == 5:
                 self.doubleDownGrid()
@@ -255,22 +223,6 @@ class MyGLViewWidget(gl.GLViewWidget):
             if self.grid.set_minimum_spacing:
                 self.scale_iterator = -5
                 self.grid.set_minimum_spacing = False
-
-            #
-            # if delta > 0:
-            #     if self.scale_iterator == 5:
-            #         self.doubleDownGrid()
-            #         self.doubleDownTextValues()
-            #         self.scale_iterator = 0
-            #     else:
-            #         self.scale_iterator += 1
-            # else:
-            #     if self.scale_iterator == 0:
-            #         self.doubleUpGrid()
-            #         self.doubleUpTextValues()
-            #         self.scale_iterator = 0
-            #     else:
-            #         self.scale_iterator -= 1
 
             self.opts['distance'] *= 0.999**delta
         self.update()
@@ -293,7 +245,6 @@ class MyGLViewWidget(gl.GLViewWidget):
 
     def doubleDownGrid(self):
         """ Уменьшает масштаб сетки в 2 раза."""
-        #print(f"set_minimum = {self.grid.set_minimum_spacing}")
         self.removeGrid()
         self.grid.doubleDownGridSpacing()
         self.addGrid()
@@ -344,8 +295,6 @@ class Graphic3D(QDialog):
         self.data = None
         self.parse_input_data()
 
-        print("DATA DONE!")
-
         # Настройки внешнего вида окна
         self.window_width = 1500
         self.window_height = 1000
@@ -361,20 +310,6 @@ class Graphic3D(QDialog):
         y_max = max(self.data.iloc[:, 0].values.tolist())
         x_max = values_number
 
-        # Если data -- массив
-        # channels = len(self.data)
-        # values_number = 0
-        # for array in self.data:
-        #     values_number = max(values_number, len(array))
-        #
-        # x_max = values_number
-        # y_max = self.data[0][0]
-        # for array in self.data:
-        #     for item in array:
-        #         y_max = max(y_max, item)
-
-        print("DATA ANALISE DONE!")
-
         self.lines = []
         # Добавляем линии и кнопки их отображения
         for channel in range(channels):
@@ -386,7 +321,6 @@ class Graphic3D(QDialog):
 
             # Выбираем данные для построения линии
             channel_data = self.data.iloc[:, channel].values.tolist()
-            #print(f"channel_data = {channel_data}")
             channel_x_max = max(channel_data)
             y_max = max(y_max, channel_x_max)
             dots = []
@@ -400,7 +334,6 @@ class Graphic3D(QDialog):
             self.figures[key] = Figure(check_box=current_button, line=line, data=Points())
 
             layout_v.addWidget(current_button)
-        print("ADD LINES DONE!")
 
         # Setting up axis
         axis_length = 8 * max(y_max, x_max)
@@ -448,7 +381,6 @@ class Graphic3D(QDialog):
             data = pd.read_csv(filepath_or_buffer=self.file_path, sep=';', header=None)
         elif file_extension == '.xlsx':
             data = pd.read_excel(io=self.file_path)
-        print(f"parse_file_data: \n\t data = {data}")
         return data
 
     def  parse_input_data(self):
@@ -456,12 +388,9 @@ class Graphic3D(QDialog):
         if self.file_path is not None:
             self.data = self.parse_file_data()
             self.caption = f"{find_file_name(self.file_path)} осциллограмма"
-            print("PATH CHECK")
         elif self.data_array is not None:
             self.data = pd.DataFrame(self.data_array)
-            print(f"array_values = {self.data.values.tolist()}")
             self.caption = f"Осциллограмма №{self.window_ind + 1}"
-        #print(f"array_values = {self.data.values.tolist()}")
 
     def press_check_box(self, figure_name):
         """ Событие нажатие на кнопку отображения линии.
