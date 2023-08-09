@@ -292,8 +292,11 @@ class Graphic3D(QDialog):
         self.data_array = data_array
         self.window_ind = window_ind
         self.experiment_time = experiment_time
+        self.line_to_start = 0
         self.data = None
+
         self.parse_input_data()
+        self.experiment_time = self.first_is_time_line()
 
         # Настройки внешнего вида окна
         self.window_width = 1500
@@ -312,8 +315,8 @@ class Graphic3D(QDialog):
 
         self.lines = []
         # Добавляем линии и кнопки их отображения
-        for channel in range(channels):
-            key = f'channel_{channel + 1}'
+        for channel in range(self.line_to_start, channels):
+            key = f'channel_{channel + 1 - self.line_to_start}'
             color = COLORS[channel]
 
             # Настройка кнопки отображения линии
@@ -430,14 +433,26 @@ class Graphic3D(QDialog):
 
         return current_button
 
+    def first_is_time_line(self):
+        """ Проверяет первую строку на соответствие строке со временем.
+        :return: новое время эксперимента, если строка содержит только одно число,
+                 в противном случае -- указанное при запуске программы."""
+        first_line_list = self.data.values.tolist()[0]
+        would_be_time = first_line_list[0]
+        for item in first_line_list[1::]:
+            if not np.isnan(item):
+                return self.experiment_time
+        self.line_to_start = 1
+        return would_be_time
+
 
 if __name__ == '__main__':
     data_array = [[68, 70, 69, 67, 68, 67, 67, 68, 70, 70, 69, 71, 69, 71, 68, 70, 69, 69], [18, 20, 19, 17, 18, 17, 17, 18, 20, 20, 19, 21, 19, 21, 18, 20, 19, 19], [28, 30, 29, 27, 28, 27, 27, 28, 30, 30, 29, 31, 29, 31, 28, 30, 29, 29], [38, 40, 39, 37, 38, 37, 37, 38, 40, 40, 39, 41, 39, 41, 38, 40, 39, 39], [48, 50, 49, 47, 48, 47, 47, 48, 50, 50, 49, 51, 49, 51, 48, 50, 49, 49], [58, 60, 59, 57, 58, 57, 57, 58, 60, 60, 59, 61, 59, 61, 58, 60, 59, 59], [68, 70, 69, 67, 68, 67, 67, 68, 70, 70, 69, 71, 69, 71, 68, 70, 69, 69], [78, 80, 79, 77, 78, 77, 77, 78, 80, 80, 79, 81, 79, 81, 78, 80, 79, 79], [88, 90, 89, 87, 88, 87, 87, 88, 90, 90, 89, 91, 89, 91, 88, 90, 89, 89], [98, 100, 99, 97, 98, 97, 97, 98, 100, 100, 99, 101, 99, 101, 98, 100, 99, 99], [108, 110, 109, 107, 108, 107, 107, 108, 110, 110, 109, 111, 109, 111, 108, 110, 109, 109], [118, 120, 119, 117, 118, 117, 117, 118, 120, 120, 119, 121, 119, 121, 118, 120, 119, 119]]
-    file_path = "test.csv"
+    file_path = "small_test.csv"
     experiment_time = 5
     if len(sys.argv) > 2:
         file_path = sys.argv[1]
         experiment_time = sys.argv[2]
     app = QtWidgets.QApplication(sys.argv)
-    g = Graphic3D(data_array=data_array, experiment_time=experiment_time)
+    g = Graphic3D(file_path=file_path, experiment_time=experiment_time)
     sys.exit(app.exec_())
